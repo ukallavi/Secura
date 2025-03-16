@@ -1,0 +1,3 @@
+# Run database backup daily at midnight
+0 0 * * * /usr/local/bin/backup-database.js >> /var/log/cron.log 2>&1
+# Empty line at the end is required

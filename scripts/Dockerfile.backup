@@ -1,0 +1,21 @@
+FROM mysql:8.0
+
+# Install cron
+RUN apt-get update && apt-get -y install cron
+
+# Copy backup script
+COPY scripts/backup-database.js /usr/local/bin/backup-database.js
+COPY scripts/backup-cron /etc/cron.d/backup-cron
+
+# Make the script executable
+RUN chmod +x /usr/local/bin/backup-database.js
+
+# Apply cron job
+RUN chmod 0644 /etc/cron.d/backup-cron
+RUN crontab /etc/cron.d/backup-cron
+
+# Create backup directory
+RUN mkdir -p /backups
+
+# Start cron in foreground
+CMD ["cron", "-f"]
