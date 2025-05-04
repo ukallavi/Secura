@@ -1,6 +1,66 @@
 // frontend/lib/api-client.js
-import { ENDPOINTS, fetchWithCSRF, ErrorTypes } from './api-config';
+import { ENDPOINTS } from './api-config';
 import logger from './logger';
+import { processApiError, ErrorTypes } from './error-handler';
+
+/**
+ * Enhanced fetch with CSRF protection
+ * @param {string} url - API endpoint URL
+ * @param {Object} options - Fetch options
+ * @returns {Promise<Object>} Response data
+ */
+// Helper to ensure all values in an object are strictly boolean
+export function sanitizeBooleans(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const sanitized = {};
+  for (const key in obj) {
+    sanitized[key] = typeof obj[key] === 'boolean' ? obj[key] : !!obj[key];
+  }
+  return sanitized;
+}
+
+export const fetchWithCSRF = async (url, options = {}) => {
+  try {
+    // Get CSRF token
+    const csrfResponse = await fetch('/api/csrf-token', {
+      credentials: 'include'
+    });
+    
+    if (!csrfResponse.ok) {
+      throw await processApiError(csrfResponse);
+    }
+    
+    const { csrfToken } = await csrfResponse.json();
+    
+    // Set up headers
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
+      ...options.headers
+    };
+    
+    // Make the actual request
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'include'
+    });
+    
+    if (!response.ok) {
+      throw await processApiError(response);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    if (error.type) {
+      // Already processed by processApiError
+      throw error;
+    }
+    
+    // Process other errors
+    throw await processApiError(error);
+  }
+};
 
 // Password management API client
 export const PasswordsApi = {
@@ -13,13 +73,17 @@ export const PasswordsApi = {
       );
       
       if (!response.ok) {
-        throw new Error('Failed to fetch passwords');
+        throw await processApiError(response);
       }
       
       return await response.json();
     } catch (error) {
       logger.error('Error fetching passwords:', error);
-      throw error;
+      if (error.type) {
+        // Already processed by processApiError
+        throw error;
+      }
+      throw await processApiError(error);
     }
   },
   
@@ -31,13 +95,17 @@ export const PasswordsApi = {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch password');
+        throw await processApiError(response);
       }
       
       return await response.json();
     } catch (error) {
       logger.error('Error fetching password:', error);
-      throw error;
+      if (error.type) {
+        // Already processed by processApiError
+        throw error;
+      }
+      throw await processApiError(error);
     }
   },
   
@@ -49,7 +117,7 @@ export const PasswordsApi = {
         body: JSON.stringify(passwordData)
       });
       
-      return await response.json();
+      return response;
     } catch (error) {
       logger.error('Error creating password:', error);
       throw error;
@@ -64,7 +132,7 @@ export const PasswordsApi = {
         body: JSON.stringify(passwordData)
       });
       
-      return await response.json();
+      return response;
     } catch (error) {
       logger.error('Error updating password:', error);
       throw error;
@@ -98,13 +166,17 @@ export const PasswordsApi = {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to generate password');
+        throw await processApiError(response);
       }
       
       return await response.json();
     } catch (error) {
       logger.error('Error generating password:', error);
-      throw error;
+      if (error.type) {
+        // Already processed by processApiError
+        throw error;
+      }
+      throw await processApiError(error);
     }
   },
   
@@ -121,13 +193,17 @@ export const PasswordsApi = {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to check password strength');
+        throw await processApiError(response);
       }
       
       return await response.json();
     } catch (error) {
       logger.error('Error checking password strength:', error);
-      throw error;
+      if (error.type) {
+        // Already processed by processApiError
+        throw error;
+      }
+      throw await processApiError(error);
     }
   }
 };
@@ -142,13 +218,17 @@ export const UsersApi = {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch user profile');
+        throw await processApiError(response);
       }
       
       return await response.json();
     } catch (error) {
       logger.error('Error fetching user profile:', error);
-      throw error;
+      if (error.type) {
+        // Already processed by processApiError
+        throw error;
+      }
+      throw await processApiError(error);
     }
   },
   
@@ -160,7 +240,7 @@ export const UsersApi = {
         body: JSON.stringify(profileData)
       });
       
-      return await response.json();
+      return response;
     } catch (error) {
       logger.error('Error updating user profile:', error);
       throw error;
@@ -189,7 +269,7 @@ export const UsersApi = {
         method: 'POST'
       });
       
-      return await response.json();
+      return response;
     } catch (error) {
       logger.error('Error setting up 2FA:', error);
       throw error;
@@ -204,10 +284,18 @@ export const UsersApi = {
         body: JSON.stringify({ token })
       });
       
+      if (!response.ok) {
+        throw await processApiError(response);
+      }
+      
       return response.ok;
     } catch (error) {
       logger.error('Error verifying 2FA:', error);
-      throw error;
+      if (error.type) {
+        // Already processed by processApiError
+        throw error;
+      }
+      throw await processApiError(error);
     }
   },
   
@@ -218,32 +306,81 @@ export const UsersApi = {
         method: 'POST'
       });
       
+      if (!response.ok) {
+        throw await processApiError(response);
+      }
+      
       return response.ok;
     } catch (error) {
       logger.error('Error disabling 2FA:', error);
-      throw error;
+      if (error.type) {
+        // Already processed by processApiError
+        throw error;
+      }
+      throw await processApiError(error);
     }
   }
 };
 
 // Admin API client
 export const AdminApi = {
+  // Get error statistics (admin only)
+  getErrorStats: (timeRange = '24h') => {
+    const url = `${ENDPOINTS.ADMIN_ERROR_STATS}?timeRange=${encodeURIComponent(timeRange)}`;
+    return fetchWithCSRF(url)
+      .then(res => res)
+      .catch(err => { throw err; });
+  },
+  // Get error details (admin only)
+  getErrorDetails: (errorId) => {
+    const url = ENDPOINTS.ADMIN_ERROR_DETAILS(errorId);
+    return fetchWithCSRF(url)
+      .then(res => res)
+      .catch(err => { throw err; });
+  },
+  
+  // Resolve an error (admin only)
+  resolveError: async (errorId, notes = '') => {
+    try {
+      const response = await fetchWithCSRF(`${ENDPOINTS.ADMIN_ERROR_TRACKING}/${errorId}/resolve`, {
+        method: 'POST',
+        body: JSON.stringify({ notes })
+      });
+      
+      if (!response.ok) {
+        throw await processApiError(response);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      logger.error('Error resolving error:', error);
+      if (error.type) {
+        // Already processed by processApiError
+        throw error;
+      }
+      throw await processApiError(error);
+    }
+  },
+  
   // Get all users (admin only)
   getAllUsers: async (page = 1, limit = 10) => {
     try {
-      const response = await fetch(
-        `${ENDPOINTS.ADMIN_USERS}?page=${page}&limit=${limit}`,
-        { credentials: 'include' }
-      );
+      const response = await fetch(`${ENDPOINTS.ADMIN_USERS}?page=${page}&limit=${limit}`, {
+        credentials: 'include'
+      });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        throw await processApiError(response);
       }
       
       return await response.json();
     } catch (error) {
       logger.error('Error fetching users:', error);
-      throw error;
+      if (error.type) {
+        // Already processed by processApiError
+        throw error;
+      }
+      throw await processApiError(error);
     }
   },
   
@@ -255,13 +392,17 @@ export const AdminApi = {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch user');
+        throw await processApiError(response);
       }
       
       return await response.json();
     } catch (error) {
       logger.error('Error fetching user:', error);
-      throw error;
+      if (error.type) {
+        // Already processed by processApiError
+        throw error;
+      }
+      throw await processApiError(error);
     }
   },
   
@@ -273,10 +414,18 @@ export const AdminApi = {
         body: JSON.stringify(userData)
       });
       
+      if (!response.ok) {
+        throw await processApiError(response);
+      }
+      
       return await response.json();
     } catch (error) {
       logger.error('Error updating user:', error);
-      throw error;
+      if (error.type) {
+        // Already processed by processApiError
+        throw error;
+      }
+      throw await processApiError(error);
     }
   },
   
@@ -287,10 +436,18 @@ export const AdminApi = {
         method: 'DELETE'
       });
       
+      if (!response.ok) {
+        throw await processApiError(response);
+      }
+      
       return response.ok;
     } catch (error) {
       logger.error('Error deleting user:', error);
-      throw error;
+      if (error.type) {
+        // Already processed by processApiError
+        throw error;
+      }
+      throw await processApiError(error);
     }
   }
 };

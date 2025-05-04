@@ -3,44 +3,20 @@ const helmet = require('helmet');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const { logger, logSecurityEvent } = require('../utils/logger');
-const RateLimit = require('../models/RateLimit');
+const RateLimit = require('../../database/models/RateLimit');
 const SecurityAlert = require('../models/SecurityAlert');
 
 // Rate limiting configuration
 const createRateLimiter = (windowMs, max, message) => {
+  // Use the default memory store for now
+  // This is simpler and more reliable for development
   return rateLimit({
     windowMs,
     max,
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: message },
-    // Store rate limit info in database for distributed environments
-    store: {
-      increment: async (key) => {
-        const rateLimitModel = new RateLimit();
-        const result = await rateLimitModel.increment(key, {
-          windowMs,
-          points: 1
-        });
-        return result.totalHits;
-      },
-      decrement: () => {}, // Optional
-      resetKey: async (key) => {
-        const rateLimitModel = new RateLimit();
-        await rateLimitModel.reset(key);
-      },
-      // Required method for the store interface
-      async get(key) {
-        const rateLimitModel = new RateLimit();
-        const now = Date.now();
-        const result = await rateLimitModel.check(key, { windowMs });
-        
-        return {
-          totalHits: result.totalHits,
-          resetTime: new Date(now + windowMs)
-        };
-      }
-    },
+    // Default memory store is used when no store is specified
     keyGenerator: (req) => {
       // Use IP and route for rate limiting
       return `${req.ip}-${req.originalUrl}`;
@@ -98,12 +74,14 @@ const helmetConfig = {
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       frameSrc: ["'none'"],
+      formAction: ["'self'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+      upgradeInsecureRequests: []
     }
   },
-  referrerPolicy: { policy: 'same-origin' },
-  xssFilter: true,
   hsts: {
-    maxAge: 15552000, // 180 days
+    maxAge: 63072000, // 2 years in seconds
     includeSubDomains: true,
     preload: true
   },
@@ -114,6 +92,9 @@ const helmetConfig = {
 
 // Request ID middleware for tracking requests
 const requestId = (req, res, next) => {
+  if (!req || !res) {
+    return next ? next() : null;
+  }
   const id = uuidv4();
   req.id = id;
   res.setHeader('X-Request-ID', id);

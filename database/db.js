@@ -1,7 +1,24 @@
 // database/db.js
 const knex = require('knex');
-const config = require('../knexfile');
-const { logger } = require('../backend/utils/logger');
+const config = require('./knexfile');
+
+// Simple logger if backend logger is not available
+const logger = {
+  debug: console.debug,
+  info: console.info,
+  warn: console.warn,
+  error: console.error
+};
+
+// Try to use backend logger if available
+try {
+  const backendLogger = require('../backend/utils/logger');
+  if (backendLogger && backendLogger.logger) {
+    Object.assign(logger, backendLogger.logger);
+  }
+} catch (err) {
+  console.warn('Backend logger not available, using fallback logger');
+}
 
 // Get environment
 const environment = process.env.NODE_ENV || 'development';

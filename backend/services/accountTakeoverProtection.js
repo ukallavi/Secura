@@ -653,6 +653,86 @@ const sendMonitoringNotification = async (userId, level, reason, expiresAt) => {
   }
 };
 
+/**
+ * Get recent suspicious activities for admin review
+ * Supports pagination and sorting
+ */
+const getSuspiciousActivities = async (options = {}) => {
+  const {
+    page = 1,
+    limit = 20,
+    status, // Optional: filter by status (e.g., 'PENDING', 'APPROVED', 'REJECTED', 'FLAGGED')
+    userId, // Optional: filter by user
+    riskLevel // Optional: filter by risk level
+  } = options;
+  const offset = (page - 1) * limit;
+  // Build query
+  let query = SuspiciousActivity.query()
+    .orderBy('created_at', 'desc')
+    .limit(limit)
+    .offset(offset);
+  if (status) query = query.where('status', status);
+  if (userId) query = query.where('user_id', userId);
+  if (riskLevel) query = query.where('risk_level', riskLevel);
+  // Fetch activities and total count
+  const [activities, totalCount] = await Promise.all([
+    query,
+    SuspiciousActivity.query().count('id as count').first()
+  ]);
+  return {
+    activities,
+    pagination: {
+      page,
+      limit,
+      totalItems: totalCount.count,
+      totalPages: Math.ceil(totalCount.count / limit)
+    }
+  };
+};
+
+/**
+ * Review a suspicious activity (approve, reject, flag)
+ * @param {number} id - Suspicious activity ID
+ * @param {string} action - 'APPROVE', 'REJECT', 'FLAG'
+ * @param {string} notes - Admin notes
+ * @param {number} adminId - Admin user ID
+ */
+const reviewSuspiciousActivity = async (id, action, notes, adminId) => {
+  // Find the suspicious activity
+  const activity = await SuspiciousActivity.query().findById(id);
+  if (!activity) return null;
+  // Update status and add review notes
+  const statusMap = {
+    'APPROVE': 'APPROVED',
+    'REJECT': 'REJECTED',
+    'FLAG': 'FLAGGED'
+  };
+  const newStatus = statusMap[action] || 'PENDING';
+  await SuspiciousActivity.query()
+    .findById(id)
+    .patch({
+      status: newStatus,
+      reviewed_at: new Date(),
+      reviewed_by: adminId,
+      review_notes: notes
+    });
+  // Optionally, log an admin action in ActivityLog
+  await ActivityLog.query().insert({
+    user_id: activity.user_id,
+    action: 'ADMIN_REVIEW_SUSPICIOUS_ACTIVITY',
+    ip_address: null,
+    user_agent: null,
+    details: JSON.stringify({
+      activityId: id,
+      action,
+      notes,
+      adminId
+    })
+  });
+  // Return updated activity
+  return await SuspiciousActivity.query().findById(id);
+};
+
 module.exports = {
   loginProtection,
   sensitiveOperationProtection,
@@ -661,5 +741,7 @@ module.exports = {
   disableAccountMonitoring,
   updateUserBaseline,
   applyLoginProtection,
-  assessActivityRisk
+  assessActivityRisk,
+  getSuspiciousActivities,
+  reviewSuspiciousActivity
 };

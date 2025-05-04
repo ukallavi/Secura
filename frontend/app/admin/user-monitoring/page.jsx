@@ -277,7 +277,7 @@ export default function UserMonitoringPage() {
                       <Button 
                         size="small" 
                         variant="outlined"
-                        onClick={() => router.push(`/admin/user/${user.id}/activities`)}
+                        onClick={() => router.push(`/admin/users/${user.id}/activities`)}
                       >
                         View Activities
                       </Button>

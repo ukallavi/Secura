@@ -68,4 +68,34 @@ function createRateLimiter(options) {
   };
 }
 
-module.exports = createRateLimiter;
+// Create specific rate limiters with different configurations
+const rateLimiter = createRateLimiter({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 60000,
+  maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 10
+});
+
+const authLimiter = createRateLimiter({
+  windowMs: parseInt(process.env.LOGIN_RATE_LIMIT_WINDOW_MS) || 300000, // 5 minutes
+  maxRequests: parseInt(process.env.LOGIN_RATE_LIMIT_MAX_REQUESTS) || 5,
+  keyGenerator: (req) => req.ip + ':auth'
+});
+
+const passwordResetLimiter = createRateLimiter({
+  windowMs: 3600000, // 1 hour
+  maxRequests: 3,
+  keyGenerator: (req) => req.ip + ':passwordReset'
+});
+
+const twoFactorLimiter = createRateLimiter({
+  windowMs: 300000, // 5 minutes
+  maxRequests: 10,
+  keyGenerator: (req) => req.ip + ':twoFactor'
+});
+
+module.exports = {
+  createRateLimiter,
+  rateLimiter,
+  authLimiter,
+  passwordResetLimiter,
+  twoFactorLimiter
+};

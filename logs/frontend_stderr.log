@@ -1,0 +1,179 @@
+- [33mwarn[39m ./app/error.jsx
+Attempted import error: 'isOffline' is not exported from '@/lib/offline-handler' (imported as 'isOffline').
+
+Import trace for requested module:
+./app/error.jsx
+
+./app/error.jsx
+Attempted import error: 'isOffline' is not exported from '@/lib/offline-handler' (imported as 'isOffline').
+
+Import trace for requested module:
+./app/error.jsx
+
+./components/ui/use-toast.jsx
+Attempted import error: 'useState' is not exported from 'react' (imported as 'React').
+
+Import trace for requested module:
+./components/ui/use-toast.jsx
+./components/ui/toaster.jsx
+./app/layout.jsx
+
+./components/ui/use-toast.jsx
+Attempted import error: 'useEffect' is not exported from 'react' (imported as 'React').
+
+Import trace for requested module:
+./components/ui/use-toast.jsx
+./components/ui/toaster.jsx
+./app/layout.jsx
+- [33mwarn[39m ./app/error.jsx
+Attempted import error: 'isOffline' is not exported from '@/lib/offline-handler' (imported as 'isOffline').
+
+Import trace for requested module:
+./app/error.jsx
+
+./app/error.jsx
+Attempted import error: 'isOffline' is not exported from '@/lib/offline-handler' (imported as 'isOffline').
+
+Import trace for requested module:
+./app/error.jsx
+
+./components/ui/use-toast.jsx
+Attempted import error: 'useState' is not exported from 'react' (imported as 'React').
+
+Import trace for requested module:
+./components/ui/use-toast.jsx
+./components/ui/toaster.jsx
+./app/layout.jsx
+
+./components/ui/use-toast.jsx
+Attempted import error: 'useEffect' is not exported from 'react' (imported as 'React').
+
+Import trace for requested module:
+./components/ui/use-toast.jsx
+./components/ui/toaster.jsx
+./app/layout.jsx
+- [31merror[39m components/ui/use-toast.jsx (132:28) @ React
+- [31merror[39m useState only works in Client Components. Add the "use client" directive at the top of the file to use it. Read more: https://nextjs.org/docs/messages/react-client-hook-in-server-component
+    at useToast (./components/ui/use-toast.jsx:126:66)
+    at Toaster (./components/ui/toaster.jsx:13:90)
+    at stringify (<anonymous>)
+[0m [90m 130 | [39m[0m
+[0m [90m 131 | [39m[36mfunction[39m useToast() {[0m
+[0m[31m[1m>[22m[39m[90m 132 | [39m  [36mconst[39m [state[33m,[39m setState] [33m=[39m [33mReact[39m[33m.[39museState(memoryState)[0m
+[0m [90m     | [39m                           [31m[1m^[22m[39m[0m
+[0m [90m 133 | [39m[0m
+[0m [90m 134 | [39m  [33mReact[39m[33m.[39museEffect(() [33m=>[39m {[0m
+[0m [90m 135 | [39m    listeners[33m.[39mpush(setState)[0m
+- [31merror[39m lib/offline-handler.js (34:17) @ navigator
+- [31merror[39m ReferenceError: navigator is not defined
+    at eval (./lib/offline-handler.js:35:17)
+    at (ssr)/./lib/offline-handler.js (/app/frontend/.next/server/app/page.js:533:1)
+    at __webpack_require__ (/app/frontend/.next/server/webpack-runtime.js:33:42)
+    at eval (./app/error.jsx:12:78)
+    at (ssr)/./app/error.jsx (/app/frontend/.next/server/app/page.js:390:1)
+    at __webpack_require__ (/app/frontend/.next/server/webpack-runtime.js:33:42)
+    at JSON.parse (<anonymous>)
+[0m [90m 32 | [39m[0m
+[0m [90m 33 | [39m[90m// State[39m[0m
+[0m[31m[1m>[22m[39m[90m 34 | [39m[36mlet[39m isOffline [33m=[39m [33m![39mnavigator[33m.[39monLine[33m;[39m[0m
+[0m [90m    | [39m                [31m[1m^[22m[39m[0m
+[0m [90m 35 | [39m[36mlet[39m offlineListeners [33m=[39m [][33m;[39m[0m
+[0m [90m 36 | [39m[0m
+[0m [90m 37 | [39m[90m/**[39m[0m
+- [33mwarn[39m ./app/error.jsx
+Attempted import error: 'isOffline' is not exported from '@/lib/offline-handler' (imported as 'isOffline').
+
+Import trace for requested module:
+./app/error.jsx
+
+./app/error.jsx
+Attempted import error: 'isOffline' is not exported from '@/lib/offline-handler' (imported as 'isOffline').
+
+Import trace for requested module:
+./app/error.jsx
+- [33mwarn[39m ./app/error.jsx
+Attempted import error: 'isOffline' is not exported from '@/lib/offline-handler' (imported as 'isOffline').
+
+Import trace for requested module:
+./app/error.jsx
+
+./app/error.jsx
+Attempted import error: 'isOffline' is not exported from '@/lib/offline-handler' (imported as 'isOffline').
+
+Import trace for requested module:
+./app/error.jsx
+- [31merror[39m lib/offline-handler.js (34:17) @ navigator
+- [31merror[39m ReferenceError: navigator is not defined
+    at eval (./lib/offline-handler.js:35:17)
+    at (ssr)/./lib/offline-handler.js (/app/frontend/.next/server/app/page.js:555:1)
+    at __webpack_require__ (/app/frontend/.next/server/webpack-runtime.js:33:42)
+    at eval (./app/error.jsx:12:78)
+    at (ssr)/./app/error.jsx (/app/frontend/.next/server/app/page.js:390:1)
+    at __webpack_require__ (/app/frontend/.next/server/webpack-runtime.js:33:42)
+    at JSON.parse (<anonymous>)
+[0m [90m 32 | [39m[0m
+[0m [90m 33 | [39m[90m// State[39m[0m
+[0m[31m[1m>[22m[39m[90m 34 | [39m[36mlet[39m isOffline [33m=[39m [33m![39mnavigator[33m.[39monLine[33m;[39m[0m
+[0m [90m    | [39m                [31m[1m^[22m[39m[0m
+[0m [90m 35 | [39m[36mlet[39m offlineListeners [33m=[39m [][33m;[39m[0m
+[0m [90m 36 | [39m[0m
+[0m [90m 37 | [39m[90m/**[39m[0m
+- [31merror[39m middleware.js (78:39) @ navigator
+- [31merror[39m navigator is not defined
+[0m [90m 76 | [39m  [0m
+[0m [90m 77 | [39m  [90m// Redirect to offline page if offline and trying to access a page that requires network[39m[0m
+[0m[31m[1m>[22m[39m[90m 78 | [39m  [36mif[39m (pathname[33m.[39mstartsWith([32m'/api/'[39m) [33m&&[39m [33m![39mnavigator[33m?[39m[33m.[39monLine) {[0m
+[0m [90m    | [39m                                      [31m[1m^[22m[39m[0m
+[0m [90m 79 | [39m    [36mreturn[39m [33mNextResponse[39m[33m.[39mredirect([36mnew[39m [33mURL[39m([32m'/offline'[39m[33m,[39m request[33m.[39murl))[33m;[39m[0m
+[0m [90m 80 | [39m  }[0m
+[0m [90m 81 | [39m  [0m
+- [33mwarn[39m ./app/error.jsx
+Attempted import error: 'isOffline' is not exported from '@/lib/offline-handler' (imported as 'isOffline').
+
+Import trace for requested module:
+./app/error.jsx
+
+./app/error.jsx
+Attempted import error: 'isOffline' is not exported from '@/lib/offline-handler' (imported as 'isOffline').
+
+Import trace for requested module:
+./app/error.jsx
+- [31merror[39m ./app/login/page.jsx
+ReactServerComponentsError:
+
+You're importing a component that needs useState. It only works in a Client Component but none of its parents are marked with "use client", so they're Server Components by default.
+Learn more: https://nextjs.org/docs/getting-started/react-essentials
+
+   ,-[[36;1;4m/app/frontend/app/login/page.jsx[0m:1:1]
+ [2m1[0m | import React, { useState } from 'react';
+   : [31;1m                ^^^^^^^^[0m
+ [2m2[0m | import { useAuth } from '../lib/auth';
+ [2m3[0m | import { useRouter } from 'next/router';
+ [2m3[0m | import { 
+   `----
+
+  [31mx[0m NEXT_RSC_ERR_SERVER_IMPORT: next/router
+   ,-[[36;1;4m/app/frontend/app/login/page.jsx[0m:1:1]
+ [2m1[0m | import React, { useState } from 'react';
+ [2m2[0m | import { useAuth } from '../lib/auth';
+ [2m3[0m | import { useRouter } from 'next/router';
+   : [31;1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+ [2m4[0m | import { 
+ [2m5[0m |   Box, Button, TextField, Typography, Paper, 
+ [2m5[0m |   CircularProgress, Alert, Link as MuiLink 
+   `----
+
+Maybe one of these should be marked as a client entry with "use client":
+  ./app/login/page.jsx
+- [31merror[39m middleware.js (78:39) @ navigator
+- [31merror[39m navigator is not defined
+[0m [90m 76 | [39m  [0m
+[0m [90m 77 | [39m  [90m// Redirect to offline page if offline and trying to access a page that requires network[39m[0m
+[0m[31m[1m>[22m[39m[90m 78 | [39m  [36mif[39m (pathname[33m.[39mstartsWith([32m'/api/'[39m) [33m&&[39m [33m![39mnavigator[33m?[39m[33m.[39monLine) {[0m
+[0m [90m    | [39m                                      [31m[1m^[22m[39m[0m
+[0m [90m 79 | [39m    [36mreturn[39m [33mNextResponse[39m[33m.[39mredirect([36mnew[39m [33mURL[39m([32m'/offline'[39m[33m,[39m request[33m.[39murl))[33m;[39m[0m
+[0m [90m 80 | [39m  }[0m
+[0m [90m 81 | [39m  [0m
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, rename '/app/frontend/.next/cache/webpack/client-development-fallback/0.pack.gz_' -> '/app/frontend/.next/cache/webpack/client-development-fallback/0.pack.gz'
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, rename '/app/frontend/.next/cache/webpack/client-development-fallback/0.pack.gz_' -> '/app/frontend/.next/cache/webpack/client-development-fallback/0.pack.gz'
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, rename '/app/frontend/.next/cache/webpack/client-development-fallback/0.pack.gz_' -> '/app/frontend/.next/cache/webpack/client-development-fallback/0.pack.gz'

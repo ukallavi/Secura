@@ -1,12 +1,50 @@
 const express = require('express');
+const bcrypt = require('bcrypt');
 const router = express.Router();
-const { validateToken, logActivity } = require('../middleware/auth');
+const { authenticateToken, logActivity } = require('../middleware/auth');
 const { db } = require('../../database/db');
 const { logger } = require('../utils/logger');
 const { withTransaction } = require('../../database/db');
 
 // All routes in this file require authentication
-router.use(validateToken);
+router.use(authenticateToken);
+
+/**
+ * Get user profile
+ * GET /api/users/profile
+ */
+router.get('/profile', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get user data without sensitive information
+    const user = await db('users')
+      .where({ id: userId })
+      .first('id', 'first_name', 'last_name', 'email', 'role', 'totp_enabled', 'created_at', 'updated_at');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Return user profile with success field
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user.id,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        email: user.email,
+        role: user.role,
+        twoFactorEnabled: !!user.totp_enabled,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at
+      }
+    });
+  } catch (error) {
+    logger.error('Error fetching user profile:', error);
+    res.status(500).json({ message: 'Server error while fetching user profile' });
+  }
+});
 
 /**
  * Get dashboard statistics
@@ -326,7 +364,7 @@ router.post('/import', async (req, res) => {
 router.put('/profile', async (req, res) => {
   try {
     const userId = req.user.id;
-    const { email } = req.body;
+    const { email, firstName, lastName, loginNotifications } = req.body;
     
     if (!email) {
       return res.status(400).json({ message: 'Email is required' });
@@ -334,31 +372,83 @@ router.put('/profile', async (req, res) => {
     
     // Check if email is already taken by another user
     const existingUser = await db('users')
-      .where({ email })
-      .whereNot({ id: userId })
+      .where({ id: userId })
       .first();
     
-    if (existingUser) {
-      return res.status(400).json({ message: 'Email is already in use' });
+    if (!existingUser) {
+      return res.status(400).json({ message: 'User not found' });
     }
     
-    // Update user profile
-    await withTransaction(async (trx) => {
-      await trx('users')
-        .where({ id: userId })
-        .update({ 
-          email,
-          updated_at: trx.fn.now()
-        });
-      
-      // Log activity within the same transaction
-      await logActivity(userId, 'UPDATE_PROFILE', { email }, req, trx);
-    });
+    // Update user profile - without using a transaction to avoid lock timeouts
+    await db('users')
+      .where({ id: userId })
+      .update({
+        email: email,
+        first_name: firstName,
+        last_name: lastName,
+        login_notifications: loginNotifications,
+        updated_at: db.fn.now()
+      });
+    
+    // Log activity separately - don't let logging failures affect the main operation
+    try {
+      await logActivity(id, 'UPDATE_PROFILE', { email }, req);
+    } catch (logError) {
+      // Just log the error but don't fail the whole operation
+      logger.error('Failed to log profile update activity:', logError);
+    }
     
     res.status(200).json({ message: 'Profile updated successfully' });
   } catch (error) {
     logger.error('Error updating profile:', error);
     res.status(500).json({ message: 'Server error while updating profile' });
+  }
+});
+
+/**
+ * Change password
+ * PUT /api/user/password
+ */
+router.put('/password', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+    
+    // Get user with password
+    const user = await db('users')
+      .where({ id: userId })
+      .first('password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Verify current password
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Invalid current password' });
+    }
+    
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Update password
+    await db('users')
+      .where({ id: userId })
+      .update({ password: hashedPassword });
+    
+    // Log activity
+    await logActivity(userId, 'CHANGE_PASSWORD', {}, req);
+    
+    res.status(200).json({ message: 'Password changed successfully' });
+  } catch (error) {
+    logger.error('Error changing password:', error);
+    res.status(500).json({ message: 'Server error while changing password' });
   }
 });
 

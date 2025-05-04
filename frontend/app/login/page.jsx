@@ -1,11 +1,13 @@
+"use client"
+
 import React, { useState } from 'react';
-import { useAuth } from '../lib/auth';
-import { useRouter } from 'next/router';
+import { useAuth } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
 import { 
   Box, Button, TextField, Typography, Paper, 
   CircularProgress, Alert, Link as MuiLink 
 } from '@mui/material';
-import TwoFactorLoginDialog from '../components/TwoFactorLoginDialog';
+import TwoFactorLoginDialog from '@/components/TwoFactorLoginDialog';
 import Link from 'next/link';
 
 const Login = () => {
@@ -20,6 +22,7 @@ const Login = () => {
   // Two-factor authentication state
   const [showTwoFactor, setShowTwoFactor] = useState(false);
   const [userId, setUserId] = useState(null);
+  const [encryptionSalt, setEncryptionSalt] = useState(null);
   
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,31 +36,25 @@ const Login = () => {
     setError('');
     
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-        credentials: 'include',
-      });
+      // Use the AuthContext's login function instead of direct fetch
+      const result = await login({ email, password });
       
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+      // Check if there was an error
+      if (result.error) {
+        throw new Error(result.error || 'Login failed');
       }
       
       // Check if 2FA is required
-      if (data.requireTwoFactor) {
-        setUserId(data.userId);
+      if (result.requireTwoFactor) {
+        setUserId(result.userId);
+        setEncryptionSalt(result.encryptionSalt);
         setShowTwoFactor(true);
         setLoading(false);
         return;
       }
       
-      // Normal login success
-      router.push('/main/passwords');
+      // Normal login success - AuthContext will handle the redirect
+      console.log('Login successful');
     } catch (error) {
       console.error('Login error:', error);
       setError(error.message || 'Login failed. Please check your credentials and try again.');
@@ -148,6 +145,8 @@ const Login = () => {
       <TwoFactorLoginDialog
         open={showTwoFactor}
         userId={userId}
+        encryptionSalt={encryptionSalt}
+        masterPassword={password} // Pass the master password for encryption setup
         onSuccess={handleTwoFactorSuccess}
         onCancel={handleTwoFactorCancel}
       />

@@ -2,8 +2,7 @@
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const { logger, logSecurityEvent } = require('../utils/logger');
-const ActivityLog = require('../../database/models/ActivityLog');
-const User = require('../../database/models/User');
+const { db } = require('../../database/db');
 
 // Authentication middleware using HTTP-only cookies
 const authenticateToken = (req, res, next) => {
@@ -22,22 +21,42 @@ const authenticateToken = (req, res, next) => {
   }
 };
 
-// Activity logging
+// Activity logging with timeout to prevent blocking
 const logActivity = async (userId, action, details, req) => {
   try {
     const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
     
-    const activityLog = new ActivityLog();
-    await activityLog.create({
+    // Create a promise that will timeout after 2 seconds
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Activity logging timed out')), 2000);
+    });
+    
+    // Create the database insert promise
+    const dbInsertPromise = db('activity_logs').insert({
       user_id: userId,
       action: action,
-      details: details,
+      details: typeof details === 'object' ? JSON.stringify(details) : details,
       ip_address: ipAddress,
-      user_agent: userAgent
+      user_agent: userAgent,
+      created_at: new Date()
     });
+    
+    // Race the promises - whichever completes first wins
+    await Promise.race([dbInsertPromise, timeoutPromise])
+      .catch(err => {
+        if (err.message === 'Activity logging timed out') {
+          logger.warn(`Activity logging timed out for action: ${action}, userId: ${userId}`);
+        } else {
+          throw err; // Re-throw other errors to be caught by the outer catch
+        }
+      });
+    
+    // Log security event (don't wait for this)
+    logSecurityEvent(action, { userId, details });
   } catch (error) {
     logger.error('Error logging activity:', error);
+    // Don't throw - activity logging should not break the application flow
   }
 };
 

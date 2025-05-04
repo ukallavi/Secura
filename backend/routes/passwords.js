@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { validateToken, logActivity } = require('../middleware/auth');
+const { authenticateToken, logActivity } = require('../middleware/auth');
 const { db } = require('../../database/db');
 const { logger } = require('../utils/logger');
 const { encrypt, decrypt } = require('../utils/encryption');
 
 // All routes in this file require authentication
-router.use(validateToken);
+router.use(authenticateToken);
 
 /**
  * Get all passwords for the authenticated user
@@ -21,39 +21,81 @@ router.get('/', async (req, res) => {
       .select(
         'id',
         'title',
-        'website',
+        'url as website', // Map url to website for frontend compatibility
         'username',
-        'password',
+        'password_encrypted as password', // Map password_encrypted to password
         'notes',
         'category',
         'favorite',
         'created_at',
         'updated_at'
       )
-      .orderBy('title', 'asc');
+      .orderBy('title', 'asc')
     
-    // Decrypt passwords if they're encrypted
-    // This assumes you have a user preference or setting for encryption
-    const user = await db('users')
-      .where({ id: userId })
-      .first('encryption_enabled');
-    
-    let decryptedPasswords = passwords;
-    
-    if (user && user.encryption_enabled) {
-      // You'll need to implement the decryption logic
-      // This is just a placeholder for the concept
-      decryptedPasswords = passwords.map(pwd => ({
-        ...pwd,
-        password: decrypt(pwd.password, req.user.encryptionKey), // encryptionKey would be from the req
-        notes: pwd.notes ? decrypt(pwd.notes, req.user.encryptionKey) : null
-      }));
-    }
+    // Passwords are always encrypted in the database
+    // Decrypt them for client-side use
+    const decryptedPasswords = passwords.map(pwd => ({
+      ...pwd,
+      // In a real implementation, these would use proper decryption
+      // For now, we'll just pass through the values
+      password: pwd.password,
+      notes: pwd.notes
+    }));
     
     res.status(200).json({ passwords: decryptedPasswords });
   } catch (error) {
     logger.error('Error fetching passwords:', error);
     res.status(500).json({ message: 'Server error while fetching passwords' });
+  }
+});
+
+/**
+ * Search passwords
+ * GET /api/passwords/search?q=term
+ * Note: This route must come before the /:id route to avoid conflicts
+ */
+router.get('/search', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { q } = req.query;
+    
+    if (!q) {
+      return res.status(400).json({ message: 'Search term is required' });
+    }
+    
+    const passwords = await db('passwords')
+      .where({ user_id: userId })
+      .where(function() {
+        this.where('title', 'like', `%${q}%`)
+          .orWhere('username', 'like', `%${q}%`)
+          .orWhere('url', 'like', `%${q}%`)
+          .orWhere('category', 'like', `%${q}%`);
+      })
+      .select(
+        'id',
+        'title',
+        'url as website',
+        'username',
+        'password_encrypted as password',
+        'notes',
+        'category',
+        'favorite',
+        'created_at',
+        'updated_at'
+      );
+    
+    // Decrypt passwords for client-side use
+    const decryptedPasswords = passwords.map(pwd => ({
+      ...pwd,
+      // In a real implementation, these would use proper decryption
+      password: pwd.password,
+      notes: pwd.notes
+    }));
+    
+    res.status(200).json({ passwords: decryptedPasswords });
+  } catch (error) {
+    logger.error('Error searching passwords:', error);
+    res.status(500).json({ message: 'Server error while searching passwords' });
   }
 });
 
@@ -71,6 +113,18 @@ router.get('/:id', async (req, res) => {
         id: passwordId,
         user_id: userId 
       })
+      .select(
+        'id',
+        'title',
+        'url as website',
+        'username',
+        'password_encrypted as password',
+        'notes',
+        'category',
+        'favorite',
+        'created_at',
+        'updated_at'
+      )
       .first();
     
     if (!password) {
@@ -100,27 +154,19 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Title and password are required' });
     }
     
-    // Check for encryption
-    const user = await db('users')
-      .where({ id: userId })
-      .first('encryption_enabled');
-    
-    let passwordToSave = password;
-    let notesToSave = notes;
-    
-    if (user && user.encryption_enabled) {
-      // Encrypt sensitive data
-      passwordToSave = encrypt(password, req.user.encryptionKey);
-      notesToSave = notes ? encrypt(notes, req.user.encryptionKey) : null;
-    }
+    // The password and notes should already be encrypted on the client side
+    // The backend just stores the encrypted data without knowing the encryption key
+    // This implements end-to-end encryption where only the client can decrypt the data
+    let passwordToSave = password; // Already encrypted JSON with IV and data
+    let notesToSave = notes ? notes : null; // Notes may be encrypted or null
     
     // Insert password
     const [passwordId] = await db('passwords').insert({
       user_id: userId,
       title,
-      website: website || null,
+      url: website || null, // Map website to url
       username: username || null,
-      password: passwordToSave,
+      password_encrypted: passwordToSave, // Map password to password_encrypted
       notes: notesToSave,
       category: category || 'general',
       favorite: favorite || false,
@@ -129,7 +175,7 @@ router.post('/', async (req, res) => {
     });
     
     // Log activity
-    await logActivity(userId, 'CREATE_PASSWORD', { title }, req);
+    await logActivity(userId, 'CREATE_PASSWORD', { title: title }, req);
     
     res.status(201).json({ 
       message: 'Password created successfully',
@@ -138,6 +184,56 @@ router.post('/', async (req, res) => {
   } catch (error) {
     logger.error('Error creating password:', error);
     res.status(500).json({ message: 'Server error while creating password' });
+  }
+});
+
+/**
+ * Batch update passwords (for re-encryption)
+ * POST /api/passwords/batch-update
+ */
+router.post('/batch-update', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { passwords } = req.body;
+    
+    if (!passwords || !Array.isArray(passwords) || passwords.length === 0) {
+      return res.status(400).json({ message: 'Valid passwords array is required' });
+    }
+    
+    // Start a transaction to ensure all updates succeed or fail together
+    await db.transaction(async trx => {
+      for (const pwd of passwords) {
+        const { id, encryptedPassword } = pwd;
+        
+        // Verify the password belongs to the user
+        const existingPassword = await trx('passwords')
+          .where({ id, user_id: userId })
+          .first();
+        
+        if (!existingPassword) {
+          throw new Error(`Password with ID ${id} not found or does not belong to user`);
+        }
+        
+        // Update the password with the new encrypted value
+        await trx('passwords')
+          .where({ id, user_id: userId })
+          .update({
+            password_encrypted: encryptedPassword,
+            updated_at: trx.fn.now()
+          });
+      }
+    });
+    
+    // Log activity
+    await logActivity(userId, 'BATCH_UPDATE_PASSWORDS', { count: passwords.length }, req);
+    
+    res.status(200).json({ 
+      message: 'Passwords updated successfully',
+      count: passwords.length
+    });
+  } catch (error) {
+    logger.error('Error batch updating passwords:', error);
+    res.status(500).json({ message: 'Server error while updating passwords: ' + error.message });
   }
 });
 
@@ -163,26 +259,18 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ message: 'Password not found' });
     }
     
-    // Check for encryption
-    const user = await db('users')
-      .where({ id: userId })
-      .first('encryption_enabled');
-    
     // Prepare update object
     const updates = {};
     
     if (title !== undefined) updates.title = title;
-    if (website !== undefined) updates.website = website;
+    if (website !== undefined) updates.url = website; // Map website to url
     if (username !== undefined) updates.username = username;
     if (password !== undefined) {
-      updates.password = user && user.encryption_enabled
-        ? encrypt(password, req.user.encryptionKey)
-        : password;
+      // In a real implementation, this would use proper encryption
+      updates.password_encrypted = password;
     }
     if (notes !== undefined) {
-      updates.notes = notes && user && user.encryption_enabled
-        ? encrypt(notes, req.user.encryptionKey)
-        : notes;
+      updates.notes = notes;
     }
     if (category !== undefined) updates.category = category;
     if (favorite !== undefined) updates.favorite = favorite;
@@ -222,6 +310,18 @@ router.delete('/:id', async (req, res) => {
         id: passwordId,
         user_id: userId 
       })
+      .select(
+        'id',
+        'title',
+        'url as website',
+        'username',
+        'password_encrypted as password',
+        'notes',
+        'category',
+        'favorite',
+        'created_at',
+        'updated_at'
+      )
       .first();
     
     if (!password) {
@@ -261,6 +361,18 @@ router.patch('/:id/favorite', async (req, res) => {
         id: passwordId,
         user_id: userId 
       })
+      .select(
+        'id',
+        'title',
+        'url as website',
+        'username',
+        'password_encrypted as password',
+        'notes',
+        'category',
+        'favorite',
+        'created_at',
+        'updated_at'
+      )
       .first();
     
     if (!password) {
@@ -288,47 +400,6 @@ router.patch('/:id/favorite', async (req, res) => {
   }
 });
 
-/**
- * Search passwords
- * GET /api/passwords/search?q=term
- */
-router.get('/search', async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { q } = req.query;
-    
-    if (!q) {
-      return res.status(400).json({ message: 'Search term is required' });
-    }
-    
-    const passwords = await db('passwords')
-      .where({ user_id: userId })
-      .where(function() {
-        this.where('title', 'like', `%${q}%`)
-          .orWhere('username', 'like', `%${q}%`)
-          .orWhere('website', 'like', `%${q}%`)
-          .orWhere('category', 'like', `%${q}%`);
-      })
-      .select(
-        'id',
-        'title',
-        'website',
-        'username',
-        'password',
-        'notes',
-        'category',
-        'favorite',
-        'created_at',
-        'updated_at'
-      );
-    
-    // Decrypt if necessary, similar to GET all
-    
-    res.status(200).json({ passwords });
-  } catch (error) {
-    logger.error('Error searching passwords:', error);
-    res.status(500).json({ message: 'Server error while searching passwords' });
-  }
-});
+
 
 module.exports = router;

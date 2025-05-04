@@ -5,8 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Key, Shield, Clock, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
+import { useToast } from '@/components/ui/use-toast';
+import { ENDPOINTS, fetchWithCSRF } from '@/lib/api-config';
 
 export default function Dashboard() {
+  const { toast } = useToast();
   const [stats, setStats] = useState({
     totalPasswords: 0,
     recentlyAdded: 0,
@@ -16,28 +19,53 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate loading data
+    // Fetch actual data from API
     const loadData = async () => {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock data
-      setStats({
-        totalPasswords: 12,
-        recentlyAdded: 3,
-        weakPasswords: 2
-      });
-      
-      setRecentPasswords([
-        { id: 1, accountName: 'Gmail Account', lastUpdated: '2 days ago' },
-        { id: 2, accountName: 'GitHub', lastUpdated: '1 week ago' },
-        { id: 3, accountName: 'Netflix', lastUpdated: '2 weeks ago' }
-      ]);
-      
-      setLoading(false);
+      try {
+        setLoading(true);
+        
+        // Fetch password statistics
+        const statsResponse = await fetchWithCSRF(ENDPOINTS.PASSWORD_STATS, {
+          method: 'GET'
+        });
+        
+        if (!statsResponse.ok) {
+          throw new Error('Failed to fetch password statistics');
+        }
+        
+        const statsData = await statsResponse.json();
+        setStats({
+          totalPasswords: statsData.totalCount || 0,
+          recentlyAdded: statsData.recentlyAddedCount || 0,
+          weakPasswords: statsData.weakPasswordsCount || 0
+        });
+        
+        // Fetch recent passwords
+        const recentResponse = await fetchWithCSRF(ENDPOINTS.RECENT_PASSWORDS, {
+          method: 'GET'
+        });
+        
+        if (!recentResponse.ok) {
+          throw new Error('Failed to fetch recent passwords');
+        }
+        
+        const recentData = await recentResponse.json();
+        setRecentPasswords(recentData.passwords || []);
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        // Show error toast
+        toast({
+          variant: "destructive",
+          title: "Error loading data",
+          description: error.message || "Failed to load dashboard data. Please try again."
+        });
+      } finally {
+        setLoading(false);
+      }
     };
     
     loadData();
-  }, []);
+  }, [toast]);
 
   return (
     <div className="space-y-6">

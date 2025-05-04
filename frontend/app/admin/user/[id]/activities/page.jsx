@@ -72,7 +72,7 @@ export default function UserActivitiesPage() {
   
   const fetchUserData = async () => {
     try {
-      const response = await fetchWithCSRF(`/api/admin/user/${userId}`);
+      const response = await fetchWithCSRF(`/api/admin/users/${userId}`);
       
       if (response.success) {
         setUser(response.data);

@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # Main application service containing frontend, backend, and database for testing
+  secura:
+    build:
+      context: ./
+      dockerfile: Dockerfile.test
+    container_name: secura-test
+    restart: "no"
+    ports:
+      - "3001:3001" # Only expose frontend test port
+    environment:
+      - NODE_ENV=test
+      # Backend environment variables
+      - BACKEND_PORT=5001
+      - DB_HOST=localhost
+      - DB_USER=${DB_USER:-secura_test}
+      - DB_NAME=${DB_NAME:-secura_test}
+      - CORS_ORIGIN=http://localhost:3001
+      - ERROR_TRACKING_ENABLED=true
+      - ERROR_TRACKING_SAMPLING_RATE=1.0
+      - ERROR_TRACKING_MAX_ERRORS=100
+      - ERROR_TRACKING_ANONYMIZE=true
+      - ERROR_RETENTION_DAYS=7
+      - AUDIT_RETENTION_DAYS=30
+      # Frontend environment variables
+      - NEXT_PUBLIC_API_URL=http://localhost:5001
+      - NEXT_PUBLIC_ERROR_TRACKING_ENABLED=true
+      - NEXT_PUBLIC_ERROR_TRACKING_ENDPOINT=/api/v1/error-tracking
+      - NEXT_PUBLIC_ERROR_TRACKING_SAMPLING_RATE=1.0
+      - NEXT_PUBLIC_ERROR_TRACKING_MAX_ERRORS=50
+      # Database environment variables
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/mysql_root_password
+      - MYSQL_DATABASE=${DB_NAME:-secura_test}
+      - MYSQL_USER=${DB_USER:-secura_test}
+      - MYSQL_PASSWORD_FILE=/run/secrets/db_password
+    secrets:
+      - jwt_secret
+      - encryption_key
+      - db_password
+      - mysql_root_password
+      - error_tracking_salt
+    volumes:
+      - ./:/app
+      - /app/frontend/node_modules
+      - /app/backend/node_modules
+      - /app/frontend/.next
+      - db-data-test:/var/lib/mysql
+      - ./logs:/app/logs
+    command: /app/docker/run-tests.sh
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db-data-test:
+
+secrets:
+  jwt_secret:
+    file: ./secrets/test/jwt_secret.txt
+  encryption_key:
+    file: ./secrets/test/encryption_key.txt
+  db_password:
+    file: ./secrets/test/db_password.txt
+  mysql_root_password:
+    file: ./secrets/test/mysql_root_password.txt
+  error_tracking_salt:
+    file: ./secrets/test/error_tracking_salt.txt

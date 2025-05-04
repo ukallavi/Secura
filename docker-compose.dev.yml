@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # Main application service containing frontend, backend, and database
+  secura:
+    build:
+      context: ./
+      dockerfile: Dockerfile.dev
+    container_name: secura-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000" # Only expose frontend port
+    environment:
+      - NODE_ENV=development
+      # Backend environment variables
+      - BACKEND_PORT=5000
+      - DB_HOST=localhost
+      - DB_USER=${DB_USER:-secura_dev}
+      - DB_NAME=${DB_NAME:-secura_dev}
+      - CORS_ORIGIN=http://localhost:3000
+      - ERROR_TRACKING_ENABLED=true
+      - ERROR_TRACKING_SAMPLING_RATE=1.0
+      - ERROR_TRACKING_MAX_ERRORS=100
+      - ERROR_TRACKING_ANONYMIZE=true
+      - ERROR_RETENTION_DAYS=30
+      - AUDIT_RETENTION_DAYS=90
+      - REPORT_DEV_ERRORS=true
+      # Frontend environment variables
+      - NEXT_PUBLIC_API_URL=http://localhost:5000
+      - NEXT_PUBLIC_ERROR_TRACKING_ENABLED=true
+      - NEXT_PUBLIC_ERROR_TRACKING_ENDPOINT=/api/v1/error-tracking
+      - NEXT_PUBLIC_ERROR_TRACKING_SAMPLING_RATE=1.0
+      - NEXT_PUBLIC_ERROR_TRACKING_MAX_ERRORS=50
+      # Database environment variables
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/mysql_root_password
+      - MYSQL_DATABASE=${DB_NAME:-secura_dev}
+      - MYSQL_USER=${DB_USER:-secura_dev}
+      - MYSQL_PASSWORD_FILE=/run/secrets/db_password
+    secrets:
+      - jwt_secret
+      - encryption_key
+      - db_password
+      - mysql_root_password
+      - error_tracking_salt
+    volumes:
+      - ./:/app
+      - /app/frontend/node_modules
+      - /app/backend/node_modules
+      - /app/frontend/.next
+      - db-data-dev:/var/lib/mysql
+      - ./logs:/app/logs
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db-data-dev:
+
+secrets:
+  # Development secrets are file-based for easier local development
+  jwt_secret:
+    file: ./secrets/dev/jwt_secret.txt
+  encryption_key:
+    file: ./secrets/dev/encryption_key.txt
+  db_password:
+    file: ./secrets/dev/db_password.txt
+  mysql_root_password:
+    file: ./secrets/dev/mysql_root_password.txt
+  error_tracking_salt:
+    file: ./secrets/dev/error_tracking_salt.txt

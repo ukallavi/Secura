@@ -1,0 +1,4 @@
+250430 21:20:26 mysqld_safe Logging to syslog.
+250430 21:20:27 mysqld_safe Starting mariadbd daemon with databases from /var/lib/mysql
+250501 06:02:57 mysqld_safe Logging to syslog.
+250501 06:02:57 mysqld_safe Starting mariadbd daemon with databases from /var/lib/mysql

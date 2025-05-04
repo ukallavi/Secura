@@ -15,7 +15,10 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, RefreshCw, Save, Eye, EyeOff } from 'lucide-react';
+import Loading from '@/components/loading';
+import { Copy, RefreshCw, Save, Eye, EyeOff, Key, AlertTriangle } from 'lucide-react';
+import { ENDPOINTS, fetchWithCSRF } from '@/lib/api-config';
+import { encryptData, getEncryptionKey, deriveEncryptionKey } from '@/lib/encryption';
 
 export default function PasswordGenerator() {
   const [accountName, setAccountName] = useState('');
@@ -27,6 +30,7 @@ export default function PasswordGenerator() {
   const [useNumbers, setUseNumbers] = useState(true);
   const [useSpecial, setUseSpecial] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const { toast } = useToast();
 
   const generatePassword = () => {
@@ -85,11 +89,20 @@ export default function PasswordGenerator() {
     
     // Auto-clear clipboard after 10 seconds for security
     setTimeout(() => {
-      navigator.clipboard.writeText('');
+      // Check if document is focused before attempting to clear clipboard
+      if (document.hasFocus()) {
+        navigator.clipboard.writeText('')
+          .catch(err => {
+            // Silently handle clipboard errors
+            console.log('Clipboard could not be cleared automatically');
+          });
+      } else {
+        console.log('Document not focused, skipping clipboard clear');
+      }
     }, 10000);
   };
 
-  const savePassword = () => {
+  const savePassword = async () => {
     if (!accountName || !password) {
       toast({
         variant: "destructive",
@@ -100,20 +113,72 @@ export default function PasswordGenerator() {
     }
     
     setLoading(true);
+    setError(null);
     
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // Get the encryption key from session storage or context
+      let encryptionKey = getEncryptionKey();
       
-      toast({
-        title: "Password saved",
-        description: `Password for ${accountName} has been saved securely.`,
+      // If no encryption key is available, we need to get the salt and master password
+      if (!encryptionKey) {
+        toast({
+          variant: "destructive",
+          title: "Encryption key not found",
+          description: "Please log in again to set up encryption.",
+        });
+        setError("Encryption key not available. Please log in again.");
+        return;
+      }
+      
+      // Encrypt the password using the encryption key
+      const encryptedPassword = await encryptData(password, encryptionKey);
+      
+      // Encrypt notes if provided
+      let encryptedNotes = null;
+      if (alias) {
+        encryptedNotes = await encryptData(alias, encryptionKey);
+      }
+      
+      // Send the encrypted data to the server
+      const response = await fetchWithCSRF(`${ENDPOINTS.PASSWORDS}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: accountName,
+          website: '',
+          username: alias || '',
+          password: encryptedPassword, // Send encrypted password
+          notes: encryptedNotes, // Send encrypted notes
+          category: 'general',
+          favorite: false,
+        }),
       });
       
-      // In a real app, we would save to the database here
-      console.log('Saved password for:', accountName);
-    }, 1000);
+      if (!response) {
+        throw new Error('Failed to save password');
+      }
+    
+      toast({
+        title: "Password saved",
+        description: `Password for ${accountName} has been encrypted and saved securely.`,
+      });
+    } catch (error) {
+      console.error('Error saving password:', error);
+      setError(error.message || "Failed to save password");
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to encrypt and save password. Please try again.",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
+  
+  if (loading) return <Loading />;
+  if (error) return <ErrorMessage message={error} />;
 
   return (
     <div className="space-y-6">

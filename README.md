@@ -56,7 +56,7 @@ Ssecura is a modern, secure password management system with advanced security mo
 - Node.js (v14+)
 - MySQL (v8+)
 - npm or yarn
-- Docker and Docker Compose (optional, for containerized setup)
+- Docker and Docker Compose (for containerized setup)
 
 ### Installation
 

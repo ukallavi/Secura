@@ -1,0 +1,148 @@
+version: '3.8'
+
+services:
+  # Main application service containing frontend, backend, and database
+  secura:
+    build:
+      context: ./
+      dockerfile: Dockerfile.prod
+      args:
+        - DOMAIN_NAME=${DOMAIN_NAME}
+        - NEXT_PUBLIC_API_URL=https://${DOMAIN_NAME}/api
+        - NEXT_PUBLIC_ERROR_TRACKING_ENABLED=true
+        - NEXT_PUBLIC_ERROR_TRACKING_ENDPOINT=/api/v1/error-tracking
+        - NEXT_PUBLIC_ERROR_TRACKING_SAMPLING_RATE=0.1
+        - NEXT_PUBLIC_ERROR_TRACKING_MAX_ERRORS=50
+    container_name: secura-prod
+    restart: always
+    expose:
+      - "3000"
+    environment:
+      - NODE_ENV=production
+      # Backend environment variables
+      - BACKEND_PORT=5000
+      - DB_HOST=localhost
+      - DB_USER=${DB_USER}
+      - DB_NAME=${DB_NAME}
+      - CORS_ORIGIN=https://${DOMAIN_NAME}
+      - ERROR_TRACKING_ENABLED=true
+      - ERROR_TRACKING_SAMPLING_RATE=0.1
+      - ERROR_TRACKING_MAX_ERRORS=100
+      - ERROR_TRACKING_ANONYMIZE=true
+      - ERROR_RETENTION_DAYS=90
+      - AUDIT_RETENTION_DAYS=365
+      - SENTRY_DSN=${SENTRY_DSN}
+      - DATADOG_API_KEY=${DATADOG_API_KEY}
+      - NEW_RELIC_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}
+      # Database environment variables
+      - MYSQL_ROOT_PASSWORD_FILE=/run/secrets/mysql_root_password
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD_FILE=/run/secrets/db_password
+      # Backup configuration
+      - BACKUP_SCHEDULE="0 0 * * *" # Daily at midnight
+      - BACKUP_RETENTION_DAYS=30
+    secrets:
+      - source: secura_jwt_secret
+        target: jwt_secret
+      - source: secura_encryption_key
+        target: encryption_key
+      - source: secura_db_password
+        target: db_password
+      - source: secura_mysql_root_password
+        target: mysql_root_password
+      - source: secura_error_tracking_salt
+        target: error_tracking_salt
+      - source: secura_admin_emails
+        target: admin_emails
+      - source: secura_smtp_password
+        target: smtp_password
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config
+      - db-data-prod:/var/lib/mysql
+      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+      - ./mysql/init:/docker-entrypoint-initdb.d
+      - ./backups:/app/backups
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nginx service for HTTPS and reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: secura-nginx-prod
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/prod.conf:/etc/nginx/conf.d/default.conf
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - app-network
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME}
+
+  # Certbot service for SSL certificates
+  certbot:
+    image: certbot/certbot
+    container_name: secura-certbot-prod
+    restart: always
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    depends_on:
+      - nginx
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --email ${ADMIN_EMAIL} --agree-tos --no-eff-email; sleep 12h & wait $${!}; done;'"
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db-data-prod:
+
+secrets:
+  # In production, these would be created using Docker Swarm secrets
+  # Before deploying, create these secrets with the following commands:
+  #
+  # docker swarm init (if not already initialized)
+  # docker secret create secura_jwt_secret - < ./secrets/prod/jwt_secret.txt
+  # docker secret create secura_encryption_key - < ./secrets/prod/encryption_key.txt
+  # docker secret create secura_db_password - < ./secrets/prod/db_password.txt
+  # docker secret create secura_mysql_root_password - < ./secrets/prod/mysql_root_password.txt
+  # docker secret create secura_error_tracking_salt - < ./secrets/prod/error_tracking_salt.txt
+  # docker secret create secura_admin_emails - < ./secrets/prod/admin_emails.txt
+  # docker secret create secura_smtp_password - < ./secrets/prod/smtp_password.txt
+  #
+  # Then deploy with: docker stack deploy -c docker-compose.prod.yml secura
+  #
+  secura_jwt_secret:
+    external: true
+  secura_encryption_key:
+    external: true
+  secura_db_password:
+    external: true
+  secura_mysql_root_password:
+    external: true
+  secura_error_tracking_salt:
+    external: true
+  secura_admin_emails:
+    external: true
+  secura_smtp_password:
+    external: true

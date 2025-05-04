@@ -11,7 +11,7 @@ const monitorDatabaseHealth = async (req, res, next) => {
     try {
       const health = await getDatabaseHealth();
       
-      if (health.status !== 'healthy') {
+      if (health.status !== 'connected') {
         logger.error('Database health check failed during request', health);
       } else if (parseInt(health.responseTime) > MAX_RESPONSE_TIME) {
         logger.warn('Database response time is high', {

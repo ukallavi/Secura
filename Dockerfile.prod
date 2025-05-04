@@ -1,0 +1,52 @@
+FROM node:18-bullseye-slim
+
+# Install MySQL and other dependencies
+RUN apt-get update && apt-get install -y \
+    default-mysql-server \
+    supervisor \
+    curl \
+    cron \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy package.json files for both frontend and backend
+COPY frontend/package*.json ./frontend/
+COPY backend/package*.json ./backend/
+
+# Install dependencies with production flag
+RUN cd frontend && npm ci --only=production
+RUN cd backend && npm ci --only=production
+
+# Copy the rest of the application
+COPY . .
+
+# Build frontend
+WORKDIR /app/frontend
+RUN npm run build
+
+# Set up MySQL data directory
+WORKDIR /app
+RUN mkdir -p /var/lib/mysql && \
+    chown -R mysql:mysql /var/lib/mysql
+
+# Create logs and backup directories
+RUN mkdir -p /app/logs && \
+    mkdir -p /app/backend/logs && \
+    mkdir -p /app/backups
+
+# Copy supervisor configuration
+COPY ./docker/supervisord.prod.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Set up backup cron job
+COPY ./docker/backup.sh /app/docker/backup.sh
+RUN chmod +x /app/docker/backup.sh
+RUN echo "${BACKUP_SCHEDULE:-0 0 * * *} /app/docker/backup.sh > /proc/1/fd/1 2>/proc/1/fd/2" > /etc/cron.d/backup-cron
+RUN chmod 0644 /etc/cron.d/backup-cron
+
+# Expose frontend port
+EXPOSE 3000
+
+# Start services using supervisord
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
